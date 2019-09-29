@@ -1,0 +1,126 @@
+---
+title: "US Voter"
+author: "Ravi Hela"
+date: "30/09/2019"
+output: html_document
+---
+
+```{r }
+# Load tidyverse
+library(tidyverse)
+
+voters <- read_csv("Data_Science/supervised-ML-case-studies-course-master/data/voters.csv")
+
+# Print voters
+glimpse(voters)
+
+# How many people voted?
+voters %>%
+    count(turnout16_2016)
+```
+
+
+```{r }
+voters %>%
+    group_by(turnout16_2016) %>%
+    summarise(`Elections don't matter` = mean(RIGGED_SYSTEM_1_2016 <= 2),
+              `Economy is getting better` = mean(econtrend_2016 == 1),
+              `Crime is very important` = mean(imiss_a_2016 == 2))
+
+```
+```{r}
+voters <- voters %>%
+    mutate(turnout16_2016 = factor(turnout16_2016))
+
+## Visualize difference by voter turnout
+voters %>%
+    ggplot(aes(econtrend_2016, ..density.., fill = turnout16_2016)) +
+    geom_histogram(alpha = 0.5, position = "identity", binwidth = 1) +
+    labs(title = "Overall, is the economy getting better or worse?")
+
+```
+```{r}
+summary(voters$turnout16_2016)
+```
+```{r}
+# Remove the case_indetifier column
+voters_select <- voters %>%
+        select(-case_identifier)
+
+# Build a simple logistic regression model
+simple_glm <- glm(turnout16_2016 ~.,  family = "binomial", 
+                  data = voters_select)
+
+# Print the summary                  
+summary(simple_glm)
+```
+
+
+```{r}
+
+set.seed(1234)
+vote_split <- voters_select %>%
+    initial_split(p = 0.8,
+                  strata = "turnout16_2016")
+vote_train <- training(vote_split)
+vote_test <- testing(vote_split)
+
+```
+
+```{r}
+vote_glm <- train(turnout16_2016 ~ ., 
+                  method = "glm", family = "binomial",
+                  data = vote_train,
+                  trControl = trainControl(method = "none",
+                                           sampling = "up"))
+```
+
+
+```{r}
+vote_glm <- train(turnout16_2016 ~ ., 
+                  method = "glm", family = "binomial",
+                  data = vote_train,
+                  trControl = trainControl(method = "repeatedcv",
+                                           repeats = 5,
+                                           sampling = "up"))
+
+# Print vote_glm
+vote_glm
+
+```
+```{r}
+vote_rf <- train(turnout16_2016 ~ ., method = "rf", 
+                 data = vote_train,
+                 trControl = trainControl(method = "repeatedcv",
+                                           repeats = 2,
+                                           sampling = "up"))
+
+# Print vote_rf
+vote_rf
+```
+
+```{r}
+vote_train %>%
+    mutate(`Logistic regression` = predict(vote_glm, vote_train)) %>%
+    conf_mat(truth = turnout16_2016, estimate = "Logistic regression")
+
+vote_train %>%
+    mutate(`Random forest` = predict(vote_rf, vote_train)) %>%
+    conf_mat(truth = turnout16_2016, estimate = "Random forest")
+
+```
+
+```{r}
+
+# Confusion matrix for logistic regression model on testing data
+vote_test %>%
+    mutate(`Logistic regression` = predict(vote_glm, vote_test)) %>%
+    conf_mat(truth = turnout16_2016, estimate = "Logistic regression")
+
+# Confusion matrix for random forest model on testing data
+vote_test %>%
+    mutate(`Random forest` = predict(vote_rf, vote_test)) %>%
+    conf_mat(truth = turnout16_2016, estimate = "Random forest")
+
+```
+
